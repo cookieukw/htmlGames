@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fogueira Pixel Art Interativa</title>
+    <style>
+      /* Estilos gerais para a página */
+      body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: #1a1a2e; /* Fundo de céu noturno escuro */
+        font-family: "Courier New", Courier, monospace;
+        color: #e0e1dd;
+        overflow: hidden;
+      }
+      /* Estilos para o contêiner principal */
+      .main-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+      }
+      /* Estilos para o canvas */
+      canvas {
+        border: 2px solid #0f3460;
+        background-color: #16213e;
+        border-radius: 8px;
+        box-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+        cursor: none; /* Esconde o cursor padrão sobre o canvas */
+        margin-bottom: 20px; /* Espaço entre o canvas e o controle */
+      }
+      /* Estilos para o título e instruções */
+      h1 {
+        color: #e94560;
+        text-shadow: 0 0 5px #e94560;
+      }
+      p {
+        margin-top: -10px;
+        font-size: 1.1em;
+      }
+      /* Estilos para os controles */
+      .controls {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+      }
+      label {
+        font-size: 1em;
+        color: #e0e1dd;
+      }
+      input[type="range"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 250px;
+        height: 8px;
+        background: #0f3460;
+        border-radius: 5px;
+        outline: none;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+      }
+      input[type="range"]:hover {
+        opacity: 1;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        background: #e94560;
+        cursor: pointer;
+        border-radius: 50%;
+        border: 2px solid #1a1a2e;
+      }
+      input[type="range"]::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        background: #e94560;
+        cursor: pointer;
+        border-radius: 50%;
+        border: 2px solid #1a1a2e;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main-container">
+      <h1>Fogueira Quentinha</h1>
+      <p>Mova o mouse para "soprar" o fogo!</p>
+      <canvas id="fireCanvas"></canvas>
+      <div class="controls">
+        <label for="particleSlider"
+          >Quantidade de Fogo: <span id="particleCountLabel">200</span></label
+        >
+        <input
+          type="range"
+          id="particleSlider"
+          min="50"
+          max="700"
+          value="200"
+        />
+      </div>
+    </div>
+
+    <script>
+      // --- Configuração do Canvas ---
+      const canvas = document.getElementById("fireCanvas");
+      const ctx = canvas.getContext("2d");
+
+      // Define o tamanho do canvas
+      const canvasWidth = 400;
+      const canvasHeight = 300;
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+
+      // Desativa a suavização de imagem para manter o estilo pixelado
+      ctx.imageSmoothingEnabled = false;
+
+      // --- Elementos da UI ---
+      const particleSlider = document.getElementById("particleSlider");
+      const particleCountLabel = document.getElementById("particleCountLabel");
+
+      // --- Configurações do Mouse ---
+      const mouse = {
+        x: -1000,
+        y: -1000,
+        radius: 50,
+      };
+
+      canvas.addEventListener("mousemove", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = (event.clientX - rect.left) * (canvas.width / rect.width);
+        mouse.y = (event.clientY - rect.top) * (canvas.height / rect.height);
+      });
+
+      canvas.addEventListener("mouseleave", () => {
+        mouse.x = -1000;
+        mouse.y = -1000;
+      });
+
+      // --- Sistema de Partículas (Fogo) ---
+      let particlesArray = [];
+      const pixelSize = 4;
+
+      class Particle {
+        constructor() {
+          this.x = Math.random() * 60 + canvasWidth / 2 - 30;
+          this.y = canvasHeight - 70;
+          this.speedY = Math.random() * 2 + 1;
+          this.speedX = (Math.random() - 0.5) * 1.5;
+          this.size = Math.random() * pixelSize + pixelSize;
+          this.color = `hsl(${Math.random() * 20 + 30}, 100%, 50%)`;
+          this.life = Math.random() * 30 + 60;
+          this.initialLife = this.life;
+        }
+
+        update() {
+          this.life -= 1;
+          if (this.life > 0) {
+            this.y -= this.speedY;
+            this.x += this.speedX;
+
+            const dx = this.x - mouse.x;
+            const dy = this.y - mouse.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < mouse.radius) {
+              const force = (mouse.radius - distance) / mouse.radius;
+              this.x += (dx / distance) * force * 3;
+              this.y += (dy / distance) * force * 3;
+            }
+          }
+        }
+
+        draw() {
+          ctx.globalAlpha = (this.life / this.initialLife) * 0.8;
+          ctx.fillStyle = this.color;
+          ctx.fillRect(this.x, this.y, this.size, this.size);
+          ctx.globalAlpha = 1.0;
+        }
+      }
+
+      // Função para inicializar ou ajustar o número de partículas
+      function adjustParticles() {
+        const newParticleCount = parseInt(particleSlider.value);
+        particleCountLabel.textContent = newParticleCount; // Atualiza o rótulo
+        const currentParticleCount = particlesArray.length;
+        const difference = newParticleCount - currentParticleCount;
+
+        if (difference > 0) {
+          // Adiciona novas partículas se o slider aumentou
+          for (let i = 0; i < difference; i++) {
+            particlesArray.push(new Particle());
+          }
+        } else if (difference < 0) {
+          // Remove partículas se o slider diminuiu
+          particlesArray.splice(0, -difference);
+        }
+      }
+
+      // Event listener para o slider
+      particleSlider.addEventListener("input", adjustParticles);
+
+      // --- Desenho dos Elementos Estáticos ---
+      function drawLogs() {
+        const logBaseY = canvasHeight - 70;
+        ctx.fillStyle = "#5C3D2E";
+        ctx.fillRect(canvasWidth / 2 - 50, logBaseY, 100, 20);
+        ctx.fillStyle = "#836253";
+        ctx.fillRect(canvasWidth / 2 - 60, logBaseY + 10, 120, 20);
+        ctx.fillStyle = "#4A2F24";
+        ctx.fillRect(canvasWidth / 2 - 45, logBaseY + 5, 10, 10);
+        ctx.fillRect(canvasWidth / 2 + 15, logBaseY + 2, 20, 8);
+        ctx.fillStyle = "#6E4A3A";
+        ctx.fillRect(canvasWidth / 2 - 55, logBaseY + 15, 15, 5);
+        ctx.fillRect(canvasWidth / 2 + 35, logBaseY + 12, 18, 6);
+      }
+
+      function drawMouseInfluence() {
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(mouse.x, mouse.y, mouse.radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // --- Loop de Animação ---
+      function animate() {
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+        drawLogs();
+
+        particlesArray.forEach((particle, index) => {
+          if (particle.life <= 0) {
+            particlesArray[index] = new Particle();
+          }
+          particle.update();
+          particle.draw();
+        });
+
+        drawMouseInfluence();
+        requestAnimationFrame(animate);
+      }
+
+      // Inicia a simulação
+      adjustParticles(); // Chama uma vez para popular o array inicial
+      animate();
+    </script>
+  </body>
+</html>

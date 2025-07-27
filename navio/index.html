@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navio Interativo no Mar - Pixel Art</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #001f3f; /* Azul marinho profundo */
+            font-family: 'Courier New', Courier, monospace; /* Fonte pixelada */
+            overflow: hidden;
+            color: #f0f8ff;
+        }
+        .container {
+            text-align: center;
+        }
+        h1 {
+            color: #60a5fa;
+            text-shadow: 0 0 5px rgba(96, 165, 250, 0.7);
+        }
+        canvas {
+            background: #003366; /* Cor de fundo sólida */
+            border: 4px solid #001f3f;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.5);
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Navio em Mar Aberto</h1>
+        <p>Mova o mouse sobre a água para criar ondas e balançar o navio.</p>
+        <canvas id="seaCanvas"></canvas>
+    </div>
+
+    <script>
+        // --- Configuração do Canvas ---
+        const canvas = document.getElementById('seaCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const canvasWidth = 600;
+        const canvasHeight = 400;
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        
+        // Desativa a suavização para um visual pixel art nítido
+        ctx.imageSmoothingEnabled = false;
+
+        // --- Configurações do Mouse ---
+        const mouse = {
+            x: -1000,
+            y: -1000,
+        };
+
+        canvas.addEventListener('mousemove', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = (event.clientX - rect.left);
+            mouse.y = (event.clientY - rect.top);
+        });
+        
+        canvas.addEventListener('mouseleave', () => {
+             mouse.x = -1000;
+             mouse.y = -1000;
+        });
+
+        // --- Simulação das Ondas ---
+        const wavePoints = [];
+        const numPoints = 61;
+        const spacing = canvasWidth / (numPoints - 1);
+        const baseHeight = canvasHeight * 0.65;
+        const waveAmplitude = 10;
+        let tick = 0;
+
+        class WavePoint {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.originalY = y;
+                this.velocityY = 0;
+                this.targetY = y;
+            }
+
+            update() {
+                const sinOffset = Math.sin(this.x / 50 + tick) * waveAmplitude;
+                this.targetY = this.originalY + sinOffset;
+
+                const dx = this.x - mouse.x;
+                const dy = this.y - mouse.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < 50) {
+                    this.velocityY += (mouse.y - this.y) / 20;
+                }
+
+                const accelerationY = (this.targetY - this.y) * 0.02;
+                this.velocityY += accelerationY;
+                this.velocityY *= 0.97; 
+                this.y += this.velocityY;
+            }
+        }
+
+        for (let i = 0; i < numPoints; i++) {
+            wavePoints.push(new WavePoint(i * spacing, baseHeight));
+        }
+
+        function spreadWave() {
+            for (let i = 0; i < wavePoints.length; i++) {
+                if (i > 0) wavePoints[i-1].velocityY += (wavePoints[i].y - wavePoints[i-1].y) * 0.01;
+                if (i < wavePoints.length - 1) wavePoints[i+1].velocityY += (wavePoints[i].y - wavePoints[i+1].y) * 0.01;
+            }
+        }
+
+        // --- Desenho do Navio em Pixel Art ---
+        const ship = {
+            x: canvasWidth / 2,
+            y: 0,
+            angle: 0,
+            pixelSize: 8 // Tamanho de cada "pixel" do navio
+        };
+
+        function drawPixel(x, y, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x * ship.pixelSize, y * ship.pixelSize, ship.pixelSize, ship.pixelSize);
+        }
+
+        function drawShip() {
+            ctx.save();
+            // Translada para a posição do navio, mas ajusta para o centro do desenho pixelado
+            ctx.translate(ship.x, ship.y);
+            ctx.rotate(ship.angle);
+            // Centraliza o desenho do navio
+            ctx.translate(-5 * ship.pixelSize, -8 * ship.pixelSize);
+
+            // Casco (Marrom escuro)
+            const hullColor = '#6b2e0a';
+            drawPixel(2, 6, hullColor); drawPixel(3, 6, hullColor); drawPixel(4, 6, hullColor); drawPixel(5, 6, hullColor); drawPixel(6, 6, hullColor); drawPixel(7, 6, hullColor);
+            drawPixel(1, 7, hullColor); drawPixel(2, 7, hullColor); drawPixel(3, 7, hullColor); drawPixel(4, 7, hullColor); drawPixel(5, 7, hullColor); drawPixel(6, 7, hullColor); drawPixel(7, 7, hullColor); drawPixel(8, 7, hullColor);
+            
+            // Deck (Marrom claro)
+            const deckColor = '#a0522d';
+            drawPixel(2, 5, deckColor); drawPixel(3, 5, deckColor); drawPixel(4, 5, deckColor); drawPixel(5, 5, deckColor); drawPixel(6, 5, deckColor); drawPixel(7, 5, deckColor);
+
+            // Mastro (Cinza escuro)
+            const mastColor = '#555555';
+            drawPixel(4, 0, mastColor);
+            drawPixel(4, 1, mastColor);
+            drawPixel(4, 2, mastColor);
+            drawPixel(4, 3, mastColor);
+            drawPixel(4, 4, mastColor);
+
+            // Vela (Branco)
+            const sailColor = '#f0f8ff';
+            drawPixel(5, 1, sailColor); drawPixel(6, 1, sailColor);
+            drawPixel(5, 2, sailColor); drawPixel(6, 2, sailColor); drawPixel(7, 2, sailColor);
+            drawPixel(5, 3, sailColor); drawPixel(6, 3, sailColor);
+            drawPixel(5, 4, sailColor);
+
+            ctx.restore();
+        }
+        
+        // --- Loop de Animação ---
+        function animate() {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            
+            // Desenha a água em estilo pixelado
+            const waterColor = '#00509E';
+            const foamColor = '#60a5fa';
+            ctx.fillStyle = waterColor;
+
+            for (let i = 0; i < wavePoints.length - 1; i++) {
+                const p = wavePoints[i];
+                p.update();
+                // Desenha o corpo da água
+                ctx.fillRect(p.x, p.y, Math.ceil(spacing), canvasHeight - p.y);
+                // Adiciona "espuma" no topo da onda
+                ctx.fillStyle = foamColor;
+                ctx.fillRect(p.x, p.y, Math.ceil(spacing), 2); // Linha de 2px de espuma
+                ctx.fillStyle = waterColor;
+            }
+            wavePoints[wavePoints.length-1].update(); // Atualiza o último ponto
+            spreadWave();
+
+            // Atualiza a posição e ângulo do navio
+            const shipWaveIndex = Math.floor(numPoints / 2);
+            const pLeft = wavePoints[shipWaveIndex - 2];
+            const pRight = wavePoints[shipWaveIndex + 2];
+            
+            // **CORREÇÃO AQUI**
+            // O valor foi ajustado para que o navio fique mais baixo, dentro da água.
+            ship.y = (pLeft.y + pRight.y) / 2 + (ship.pixelSize * 1.5); // Ajusta a altura para o navio ficar na água
+            ship.angle = (pRight.y - pLeft.y) / (4 * spacing);
+
+            drawShip();
+
+            tick += 0.03;
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
