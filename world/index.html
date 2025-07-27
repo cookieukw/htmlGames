@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simulador de Partículas com Texturas</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        font-family: "Roboto Mono", monospace;
+        background-color: #1a1a1a;
+        color: #f0f0f0;
+        overflow: hidden;
+      }
+      canvas {
+        background-color: #2b2b2b;
+        cursor: none;
+        display: block;
+        border-radius: 8px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+      }
+      .controls {
+        background-color: #252525;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+      }
+      .control-btn {
+        transition: all 0.2s ease-in-out;
+        border: 2px solid transparent;
+      }
+      .control-btn.active {
+        transform: scale(1.1);
+        box-shadow: 0 0 15px var(--shadow-color, #fff);
+        border-color: var(--border-color, #fff);
+      }
+      .control-btn:hover:not(.active) {
+        transform: translateY(-2px);
+      }
+      /* Estilo para o Toggle Switch da Luz Solar */
+      .toggle-label {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        background-color: #4a4a4a;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        color: white;
+        font-weight: bold;
+      }
+      .toggle-checkbox {
+        display: none;
+      }
+      .toggle-switch {
+        position: relative;
+        width: 40px;
+        height: 22px;
+        background: #333;
+        border-radius: 9999px;
+        transition: background-color 0.2s;
+        margin-left: 10px;
+      }
+      .toggle-switch::before {
+        content: "";
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: white;
+        top: 3px;
+        left: 4px;
+        transition: transform 0.2s;
+      }
+      .toggle-checkbox:checked + .toggle-switch {
+        background-color: #ffd700;
+      }
+      .toggle-checkbox:checked + .toggle-switch::before {
+        transform: translateX(18px);
+      }
+    </style>
+  </head>
+  <body class="flex flex-col items-center justify-center h-screen m-0 p-4">
+    <h1 class="text-2xl md:text-3xl font-bold mb-4 text-center">
+      Simulador de Partículas Físicas
+    </h1>
+
+    <div
+      id="controls"
+      class="controls p-3 mb-4 flex flex-wrap justify-center items-center gap-3 rounded-lg"
+    >
+      <!-- CORES DOS BOTÕES MAIS VIVAS E SATURADAS -->
+      <button
+        data-element="1"
+        class="control-btn active p-2 md:p-3 rounded-md font-bold text-lg"
+        style="
+          background-color: #ffc700;
+          color: #6f5800;
+          --shadow-color: #ffc700;
+          --border-color: #ffec99;
+        "
+      >
+        Areia
+      </button>
+      <button
+        data-element="2"
+        class="control-btn p-2 md:p-3 rounded-md font-bold text-lg"
+        style="
+          background-color: #40e0d0;
+          color: #005a52;
+          --shadow-color: #40e0d0;
+          --border-color: #a7f5ee;
+        "
+      >
+        Água
+      </button>
+      <button
+        data-element="3"
+        class="control-btn p-2 md:p-3 rounded-md font-bold text-lg"
+        style="
+          background-color: #9e9e9e;
+          color: #ffffff;
+          --shadow-color: #9e9e9e;
+          --border-color: #e0e0e0;
+        "
+      >
+        Pedra
+      </button>
+      <button
+        data-element="4"
+        class="control-btn p-2 md:p-3 rounded-md font-bold text-lg"
+        style="
+          background-color: #ff4500;
+          color: #ffffff;
+          --shadow-color: #ff4500;
+          --border-color: #ff8c00;
+        "
+      >
+        Lava
+      </button>
+      <button
+        data-element="5"
+        class="control-btn p-2 md:p-3 rounded-md font-bold text-lg"
+        style="
+          background-color: #fcf4a3;
+          color: #817824;
+          --shadow-color: #fcf4a3;
+          --border-color: #fff;
+        "
+      >
+        Luz
+      </button>
+      <button
+        data-element="0"
+        class="control-btn p-2 md:p-3 rounded-md font-bold text-lg bg-gray-800 text-white"
+        style="--shadow-color: #4b5563; --border-color: #9ca3af"
+      >
+        Apagar
+      </button>
+      <label class="toggle-label">
+        Luz Solar
+        <input type="checkbox" id="sunlightToggle" class="toggle-checkbox" />
+        <span class="toggle-switch"></span>
+      </label>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+      // --- Configurações Iniciais ---
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+      const EMPTY = 0,
+        SAND = 1,
+        WATER = 2,
+        STONE = 3,
+        LAVA = 4,
+        LIGHT_BLOCK = 5;
+
+      const COLORS = {
+        [SAND]: { r: 255, g: 199, b: 0 }, // #ffc700
+        [WATER]: { r: 64, g: 224, b: 208 }, // #40e0d0
+        [STONE]: { r: 158, g: 158, b: 158 },
+        [LAVA]: { r: 255, g: 69, b: 0 },
+        [LIGHT_BLOCK]: { r: 252, g: 244, b: 163 },
+      };
+
+      let resolution = 8;
+      let cols, rows;
+      let grid, lightGrid;
+
+      let isMouseDown = false;
+      let currentElement = SAND;
+      let brushSize = 3;
+      let mouseGridX = -1,
+        mouseGridY = -1;
+
+      let isSunlightOn = false;
+
+      // --- Funções do Jogo ---
+
+      function createCell(type = EMPTY) {
+        return {
+          type,
+          updated: false,
+          variant: Math.random() - 0.5,
+        };
+      }
+
+      function setup() {
+        const maxWidth = window.innerWidth * 0.95;
+        const maxHeight = window.innerHeight * 0.7;
+        cols = Math.floor(maxWidth / resolution);
+        rows = Math.floor(maxHeight / resolution);
+        canvas.width = cols * resolution;
+        canvas.height = rows * resolution;
+
+        grid = Array(cols)
+          .fill(null)
+          .map(() =>
+            Array(rows)
+              .fill(null)
+              .map(() => createCell())
+          );
+        lightGrid = Array(cols)
+          .fill(null)
+          .map(() => Array(rows).fill(0));
+      }
+
+      function update() {
+        for (let i = 0; i < cols; i++) {
+          for (let j = 0; j < rows; j++) {
+            grid[i][j].updated = false;
+          }
+        }
+
+        for (let j = rows - 1; j >= 0; j--) {
+          const startI = Math.random() < 0.5 ? 0 : cols - 1;
+          const endI = Math.random() < 0.5 ? cols : -1;
+          const stepI = Math.sign(endI - startI);
+
+          for (let i = startI; i !== endI; i += stepI) {
+            const cell = grid[i][j];
+            if (cell.type === STONE || cell.type === LIGHT_BLOCK) continue;
+
+            if (cell.type !== EMPTY && !cell.updated) {
+              handleInteractions(i, j);
+              if (grid[i][j].type !== EMPTY) {
+                switch (grid[i][j].type) {
+                  case SAND:
+                  case LAVA:
+                    updatePowder(i, j);
+                    break;
+                  case WATER:
+                    updateLiquid(i, j);
+                    break;
+                }
+              }
+            }
+          }
+        }
+
+        settleWater();
+        updateLighting();
+      }
+
+      function handleInteractions(x, y) {
+        const cell = grid[x][y];
+        if (cell.type === WATER) {
+          for (let i = -1; i <= 1; i++) {
+            for (let j = -1; j <= 1; j++) {
+              if (i === 0 && j === 0) continue;
+              const nx = x + i,
+                ny = y + j;
+              if (
+                nx >= 0 &&
+                nx < cols &&
+                ny >= 0 &&
+                ny < rows &&
+                grid[nx][ny].type === LAVA
+              ) {
+                grid[x][y] = createCell(EMPTY);
+                grid[nx][ny] = createCell(STONE);
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      function moveCell(fromX, fromY, toX, toY) {
+        grid[toX][toY] = grid[fromX][fromY];
+        grid[toX][toY].updated = true;
+        grid[fromX][fromY] = createCell();
+      }
+
+      function isPassable(x, y) {
+        if (x < 0 || x >= cols || y < 0 || y >= rows) return false;
+        const type = grid[x][y].type;
+        return type === EMPTY || type === WATER;
+      }
+
+      function isSolid(x, y) {
+        if (x < 0 || x >= cols || y < 0 || y >= rows) return true;
+        const type = grid[x][y].type;
+        return type === STONE || type === LIGHT_BLOCK;
+      }
+
+      function updatePowder(i, j) {
+        if (j < rows - 1 && isPassable(i, j + 1)) {
+          moveCell(i, j, i, j + 1);
+          return;
+        }
+
+        const canGoLeft = j < rows - 1 && isPassable(i - 1, j + 1);
+        const canGoRight = j < rows - 1 && isPassable(i + 1, j + 1);
+
+        if (canGoLeft && canGoRight) {
+          moveCell(i, j, i + (Math.random() < 0.5 ? 1 : -1), j + 1);
+        } else if (canGoLeft) {
+          moveCell(i, j, i - 1, j + 1);
+        } else if (canGoRight) {
+          moveCell(i, j, i + 1, j + 1);
+        }
+      }
+
+      function updateLiquid(i, j) {
+        if (j < rows - 1 && grid[i][j + 1].type === EMPTY) {
+          moveCell(i, j, i, j + 1);
+          return;
+        }
+        const diagDir = Math.random() < 0.5 ? 1 : -1;
+        if (j < rows - 1 && grid[i + diagDir]?.[j + 1]?.type === EMPTY) {
+          moveCell(i, j, i + diagDir, j + 1);
+          return;
+        }
+        if (j < rows - 1 && grid[i - diagDir]?.[j + 1]?.type === EMPTY) {
+          moveCell(i, j, i - diagDir, j + 1);
+          return;
+        }
+
+        const flowDir = Math.random() < 0.5 ? 1 : -1;
+        if (grid[i + flowDir]?.[j]?.type === EMPTY) {
+          moveCell(i, j, i + flowDir, j);
+          return;
+        }
+        if (grid[i - flowDir]?.[j]?.type === EMPTY) {
+          moveCell(i, j, i - flowDir, j);
+          return;
+        }
+      }
+
+      function settleWater() {
+        for (let j = rows - 2; j >= 0; j--) {
+          for (let i = 1; i < cols - 1; i++) {
+            const cell = grid[i][j];
+            const cellBelow = grid[i][j + 1];
+
+            if (cell.type !== WATER || cellBelow.type === EMPTY) {
+              continue;
+            }
+
+            const leftCell = grid[i - 1][j];
+            const rightCell = grid[i + 1][j];
+            const leftCellBelow = grid[i - 1][j + 1];
+            const rightCellBelow = grid[i + 1][j + 1];
+
+            if (leftCell.type === EMPTY && leftCellBelow.type !== EMPTY) {
+              moveCell(i, j, i - 1, j);
+              continue;
+            }
+
+            if (rightCell.type === EMPTY && rightCellBelow.type !== EMPTY) {
+              moveCell(i, j, i + 1, j);
+            }
+          }
+        }
+      }
+
+      function updateLighting() {
+        for (let i = 0; i < cols; i++) {
+          for (let j = 0; j < rows; j++) {
+            const type = grid[i][j].type;
+            if (type === LAVA || type === LIGHT_BLOCK) {
+              lightGrid[i][j] = 1.0;
+            } else {
+              lightGrid[i][j] = 0.0;
+            }
+          }
+        }
+
+        if (isSunlightOn) {
+          for (let i = 0; i < cols; i++) {
+            if (!isSolid(i, 0)) {
+              lightGrid[i][0] = Math.max(lightGrid[i][0], 1.0);
+            }
+          }
+        }
+
+        const falloff = 0.12;
+        for (let j = 0; j < rows; j++)
+          for (let i = 0; i < cols; i++) {
+            if (isSolid(i, j)) continue;
+            let maxLight = lightGrid[i][j];
+            if (j > 0 && !isSolid(i, j - 1))
+              maxLight = Math.max(maxLight, lightGrid[i][j - 1] - falloff);
+            if (i > 0 && !isSolid(i - 1, j))
+              maxLight = Math.max(maxLight, lightGrid[i - 1][j] - falloff);
+            lightGrid[i][j] = Math.max(0, maxLight);
+          }
+        for (let j = rows - 1; j >= 0; j--)
+          for (let i = cols - 1; i >= 0; i--) {
+            if (isSolid(i, j)) continue;
+            let maxLight = lightGrid[i][j];
+            if (j < rows - 1 && !isSolid(i, j + 1))
+              maxLight = Math.max(maxLight, lightGrid[i][j + 1] - falloff);
+            if (i < cols - 1 && !isSolid(i + 1, j))
+              maxLight = Math.max(maxLight, lightGrid[i + 1][j] - falloff);
+            lightGrid[i][j] = Math.max(0, maxLight);
+          }
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const ambientLight = isSunlightOn ? 0.5 : 0.2;
+
+        for (let i = 0; i < cols; i++) {
+          for (let j = 0; j < rows; j++) {
+            const cell = grid[i][j];
+            if (cell.type !== EMPTY) {
+              const baseColor = COLORS[cell.type];
+              let r = baseColor.r,
+                g = baseColor.g,
+                b = baseColor.b;
+
+              const lightValue = lightGrid[i][j];
+              const brightness = ambientLight + (1 - ambientLight) * lightValue;
+              const finalBrightness = Math.min(1.0, brightness);
+
+              r = Math.floor(r * finalBrightness);
+              g = Math.floor(g * finalBrightness);
+              b = Math.floor(b * finalBrightness);
+
+              if (
+                cell.type === SAND ||
+                cell.type === STONE ||
+                cell.type === LIGHT_BLOCK
+              ) {
+                const variation = cell.variant * 40;
+                r = Math.max(0, Math.min(255, r + variation));
+                g = Math.max(0, Math.min(255, g + variation));
+                b = Math.max(0, Math.min(255, b + variation));
+              } else if (cell.type === LAVA) {
+                const variation = Math.random() * 60;
+                r = Math.min(255, r + variation);
+                g = Math.min(255, g + variation * 0.6);
+              } else if (cell.type === WATER) {
+                const isSurface = j === 0 || grid[i][j - 1].type === EMPTY;
+                if (!isSurface) {
+                  // Corpo da água sólido
+                } else {
+                  // Superfície com leve textura
+                  const variation = cell.variant * 20;
+                  r = Math.max(0, Math.min(255, r + variation));
+                  g = Math.max(0, Math.min(255, g + variation));
+                  b = Math.max(0, Math.min(255, b + variation));
+                }
+              }
+
+              ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+              ctx.fillRect(
+                i * resolution,
+                j * resolution,
+                resolution,
+                resolution
+              );
+            }
+          }
+        }
+        drawBrushIndicator();
+      }
+
+      function drawBrushIndicator() {
+        if (mouseGridX < 0 || mouseGridY < 0) return;
+        const size = brushSize * 2 + 1;
+        const x = (mouseGridX - brushSize) * resolution;
+        const y = (mouseGridY - brushSize) * resolution;
+        const dimension = size * resolution;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, dimension, dimension);
+      }
+
+      function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+      }
+
+      // --- Event Listeners ---
+
+      function getMousePos(e) {
+        const rect = canvas.getBoundingClientRect();
+        mouseGridX = Math.floor((e.clientX - rect.left) / resolution);
+        mouseGridY = Math.floor((e.clientY - rect.top) / resolution);
+      }
+
+      /**
+       * CORRIGIDO: O pincel agora tem um comportamento diferente para cada tipo de elemento.
+       */
+      function paint() {
+        // Para elementos fluidos/granulares, usa um efeito de "regador"
+        if (
+          currentElement === WATER ||
+          currentElement === SAND ||
+          currentElement === LAVA
+        ) {
+          const particleCount = Math.max(1, brushSize * brushSize * 0.75); // Densidade do spray
+          for (let k = 0; k < particleCount; k++) {
+            const angle = Math.random() * 2 * Math.PI;
+            const radius = Math.random() * brushSize;
+            const i = Math.floor(radius * Math.cos(angle));
+            const j = Math.floor(radius * Math.sin(angle));
+
+            const col = mouseGridX + i;
+            const row = mouseGridY + j;
+
+            if (col >= 0 && col < cols && row >= 0 && row < rows) {
+              const existingType = grid[col][row].type;
+              const isExistingSolid =
+                existingType === STONE || existingType === LIGHT_BLOCK;
+              if (!isExistingSolid) {
+                grid[col][row] = createCell(currentElement);
+              }
+            }
+          }
+        } else {
+          // Para Pedra, Luz e Apagar, usa um pincel sólido
+          for (let i = -brushSize; i <= brushSize; i++) {
+            for (let j = -brushSize; j <= brushSize; j++) {
+              if (Math.sqrt(i * i + j * j) <= brushSize) {
+                const col = mouseGridX + i;
+                const row = mouseGridY + j;
+
+                if (col >= 0 && col < cols && row >= 0 && row < rows) {
+                  const existingType = grid[col][row].type;
+                  const isExistingSolid =
+                    existingType === STONE || existingType === LIGHT_BLOCK;
+
+                  if (currentElement === EMPTY) {
+                    grid[col][row] = createCell(EMPTY);
+                  } else if (
+                    currentElement === STONE ||
+                    currentElement === LIGHT_BLOCK
+                  ) {
+                    grid[col][row] = createCell(currentElement);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      canvas.addEventListener("mousedown", (e) => {
+        isMouseDown = true;
+        getMousePos(e);
+        paint();
+      });
+      canvas.addEventListener("mouseup", () => (isMouseDown = false));
+      canvas.addEventListener("mousemove", (e) => {
+        getMousePos(e);
+        if (isMouseDown) paint();
+      });
+      canvas.addEventListener("mouseleave", () => {
+        isMouseDown = false;
+        mouseGridX = -1;
+        mouseGridY = -1;
+      });
+
+      canvas.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        brushSize -= Math.sign(e.deltaY);
+        brushSize = Math.max(0, Math.min(20, brushSize));
+      });
+
+      document.getElementById("controls").addEventListener("click", (e) => {
+        if (e.target.tagName === "BUTTON") {
+          currentElement = parseInt(e.target.dataset.element, 10);
+          document
+            .querySelectorAll(".control-btn")
+            .forEach((btn) => btn.classList.remove("active"));
+          e.target.classList.add("active");
+        }
+      });
+
+      document
+        .getElementById("sunlightToggle")
+        .addEventListener("change", (e) => {
+          isSunlightOn = e.target.checked;
+        });
+
+      window.addEventListener("resize", setup);
+
+      // --- Início do Jogo ---
+      setup();
+      gameLoop();
+    </script>
+  </body>
+</html>
